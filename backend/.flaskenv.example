@@ -1,0 +1,2 @@
+# Set DATABASE_URL in your private environment before running migrations.
+FLASK_APP=app
