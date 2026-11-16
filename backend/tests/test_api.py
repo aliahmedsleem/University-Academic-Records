@@ -6,7 +6,7 @@ from app import create_app
 
 @pytest.fixture
 def client():
-    return create_app().test_client()
+    app = create_app({"TESTING": True, "SECRET_KEY": "test-only"})\n    client = app.test_client()\n    with client.session_transaction() as sess:\n        sess["role"] = "admin"\n    return client
 
 
 def test_health(client):
