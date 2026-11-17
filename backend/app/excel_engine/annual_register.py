@@ -117,5 +117,7 @@ def parse_annual_register(stream, filename, sheet_name=None, max_students=MAX_PR
             }
         finally:
             wb.close()
+    except WorkbookReadError:
+        raise
     except (BadZipFile, OSError, ValueError, TypeError, KeyError) as exc:
         raise WorkbookReadError("Could not read annual register") from exc
