@@ -77,7 +77,10 @@ def parse_annual_register(stream, filename, sheet_name=None, max_students=MAX_PR
                     and name.replace(" ", "").replace("ـ", "") not in
                     {"الاسم", "اسمالطالب", "اسمالطالبة", "اسماءالطلبة", "اسماءالطلاب"}
                 )
-                starts_student = valid_name and valid_serial and attempt == ATTEMPTS[0]
+                # Serial numbers are optional in legitimate register templates.
+                # A plausible name on the first-attempt row is sufficient for
+                # a *candidate*, never for automatic identity confirmation.
+                starts_student = valid_name and attempt == ATTEMPTS[0]
                 if name and not starts_student:
                     issues.append({"row": row_number, "code": "non_student_name_cell"})
                 if starts_student:
