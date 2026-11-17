@@ -17,7 +17,7 @@ MAX_PREVIEW_STUDENTS = 150
 def _text(v):
     return "" if v is None else str(v).strip()
 
-def parse_annual_register(stream, filename, sheet_name="سجل الدرجات", max_students=MAX_PREVIEW_STUDENTS):
+def parse_annual_register(stream, filename, sheet_name=None, max_students=MAX_PREVIEW_STUDENTS):
     if Path(filename).suffix.lower() not in (".xlsx", ".xlsm"):
         raise WorkbookReadError("Annual register parser supports XLSX and XLSM only")
     if type(max_students) is not int or not 1 <= max_students <= MAX_PREVIEW_STUDENTS:
@@ -33,8 +33,15 @@ def parse_annual_register(stream, filename, sheet_name="سجل الدرجات", 
                 raise WorkbookReadError("Workbook exceeds safe decompressed size")
         wb = openpyxl.load_workbook(BytesIO(raw), read_only=True, data_only=False, keep_links=False)
         try:
-            if len(wb.worksheets) > MAX_SHEETS or sheet_name not in wb.sheetnames:
-                raise WorkbookReadError("Grade register sheet missing or too many sheets")
+            if len(wb.worksheets) > MAX_SHEETS:
+                raise WorkbookReadError("Workbook has too many sheets")
+            if sheet_name:
+                if sheet_name not in wb.sheetnames:
+                    raise WorkbookReadError("Selected sheet not found. Available: " + ", ".join(wb.sheetnames[:10]))
+            else:
+                sheet_name = next((name for name in wb.sheetnames if "سجل" in name and "درج" in name), None)
+                if sheet_name is None:
+                    raise WorkbookReadError("Annual grade sheet not identified. Select one of: " + ", ".join(wb.sheetnames[:10]))
             ws = wb[sheet_name]
             if ws.max_row > MAX_ROWS or ws.max_column > MAX_COLUMNS:
                 raise WorkbookReadError("Worksheet exceeds safe dimensions")
@@ -110,5 +117,5 @@ def parse_annual_register(stream, filename, sheet_name="سجل الدرجات", 
             }
         finally:
             wb.close()
-    except (BadZipFile, OSError, ValueError, TypeError) as exc:
+    except (BadZipFile, OSError, ValueError, TypeError, KeyError) as exc:
         raise WorkbookReadError("Could not read annual register") from exc
