@@ -2,7 +2,7 @@ from io import BytesIO
 import pytest
 import openpyxl
 from app import create_app
-from app.models import db, Grade, Student, GradeImportBatch
+from app.models import db, Grade, Student, GradeImportBatch, GradeBatchAuditEvent
 
 @pytest.fixture
 def client():
@@ -40,10 +40,17 @@ def test_metadata_only_batch_and_duplicate_rejection(client):
     assert client.post(f"/api/grade-batches/{batch_id}/approve").status_code == 409
     assert client.post(f"/api/grade-batches/{batch_id}/reject").status_code == 200
     assert client.post(f"/api/grade-batches/{batch_id}/reject").status_code == 409
+    history = client.get(f"/api/grade-batches/{batch_id}/audit")
+    assert history.status_code == 200
+    assert [event["action"] for event in history.json] == ["created", "rejected"]
+    assert history.json[0]["new_status"] == "pending_review"
+    assert history.json[1]["previous_status"] == "pending_review"
+    assert history.json[1]["new_status"] == "rejected"
     with client.application.app_context():
         assert db.session.query(Grade).count() == 0
         assert db.session.query(Student).count() == 0
         assert db.session.query(GradeImportBatch).count() == 1
+        assert db.session.query(GradeBatchAuditEvent).count() == 2
 
 def test_unauthenticated_cannot_create_batch(client):
     client.post("/api/admin/logout")
