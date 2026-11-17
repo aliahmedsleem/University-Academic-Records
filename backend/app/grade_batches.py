@@ -6,7 +6,7 @@ Approval and grade import intentionally remain unavailable.
 from flask import Blueprint, jsonify, request, session
 from sqlalchemy.exc import IntegrityError
 from .admin import require_auth
-from .models import db, GradeImportBatch
+from .models import db, GradeImportBatch, GradeBatchAuditEvent
 from .excel_engine.annual_register import parse_annual_register
 from .excel_engine.reader import WorkbookReadError
 
@@ -14,6 +14,21 @@ batch_bp = Blueprint("grade_batches", __name__, url_prefix="/api/grade-batches")
 
 def _admin_only():
     return session.get("role") == "admin"
+
+def _event(batch, action, old_status, new_status):
+    return GradeBatchAuditEvent(
+        batch_id=batch.id, action=action,
+        actor_username=str(session.get("username") or "unknown")[:150],
+        actor_role=str(session.get("role") or "unknown")[:30],
+        previous_status=old_status, new_status=new_status,
+    )
+
+def _serialize_event(event):
+    return {"id": event.id, "batch_id": event.batch_id,
+            "action": event.action, "actor_username": event.actor_username,
+            "actor_role": event.actor_role,
+            "previous_status": event.previous_status, "new_status": event.new_status,
+            "created_at": event.created_at.isoformat() if event.created_at else None}
 
 def _serialize(batch):
     return {"id": batch.id, "original_filename": batch.original_filename,
@@ -52,6 +67,8 @@ def create_batch():
                              sha256=preview["sha256"], status="pending_review")
     try:
         db.session.add(batch)
+        db.session.flush()
+        db.session.add(_event(batch, 'created', None, 'pending_review'))
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
@@ -70,7 +87,9 @@ def reject_batch(batch_id):
         return jsonify(error="Batch not found"), 404
     if batch.status != "pending_review":
         return jsonify(error="Only pending batches can be rejected"), 409
+    old_status = batch.status
     batch.status = "rejected"
+    db.session.add(_event(batch, 'rejected', old_status, 'rejected'))
     db.session.commit()
     return jsonify(batch=_serialize(batch))
 
@@ -80,3 +99,17 @@ def approval_disabled(batch_id):
     if not _admin_only():
         return jsonify(error="Forbidden"), 403
     return jsonify(error="Grade approval is disabled until verified identities, course mappings, grade rules and audit trail are implemented"), 409
+
+@batch_bp.get("/<int:batch_id>/audit")
+@require_auth
+def batch_audit(batch_id):
+    if not _admin_only():
+        return jsonify(error="Forbidden"), 403
+    if db.session.get(GradeImportBatch, batch_id) is None:
+        return jsonify(error="Batch not found"), 404
+    events = db.session.execute(
+        db.select(GradeBatchAuditEvent)
+        .where(GradeBatchAuditEvent.batch_id == batch_id)
+        .order_by(GradeBatchAuditEvent.id.asc()).limit(500)
+    ).scalars().all()
+    return jsonify([_serialize_event(event) for event in events])
