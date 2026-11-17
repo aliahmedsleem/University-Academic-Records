@@ -5,6 +5,7 @@ from flask_migrate import Migrate
 
 from .excel_engine.reader import inspect_workbook, WorkbookReadError
 from .excel_engine.templates import enrich_preview
+from .excel_engine.extractor import extract_candidates
 from .models import db
 from .admin import admin_bp, require_auth
 from .api_academic import academic_bp
@@ -46,6 +47,18 @@ def create_app(test_config=None):
         except WorkbookReadError as exc:
             return jsonify(error=str(exc)), 422
         return jsonify(preview)
+
+    @app.post("/api/excel/candidates")
+    @require_auth
+    def excel_candidates():
+        uploaded = request.files.get("file")
+        if uploaded is None or not uploaded.filename:
+            return jsonify(error="A file is required"), 400
+        try:
+            result = extract_candidates(uploaded.stream, uploaded.filename)
+        except WorkbookReadError as exc:
+            return jsonify(error=str(exc)), 422
+        return jsonify(result)
 
     @app.errorhandler(RequestEntityTooLarge)
     def too_large(_exc):
