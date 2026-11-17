@@ -27,3 +27,22 @@ def test_invalid_xlsm():
         pass
     else:
         raise AssertionError("Corrupt workbook must be rejected")
+
+def test_candidate_extraction_never_saves():
+    from app.excel_engine.extractor import extract_candidates
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "المعلومات"
+    grades = wb.create_sheet("سجل الدرجات")
+    grades["C9"] = "اسم الطالب"
+    grades["E8"] = "الرياضيات"
+    grades["C10"] = "احمد محمد علي حسين"
+    grades["E10"] = 82
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    result = extract_candidates(output, "test.xlsx")
+    assert result["saved_to_database"] is False
+    assert result["review_required"] is True
+    assert result["sheets"][0]["candidate_rows"][0]["excel_row"] == 10
+    assert result["sheets"][0]["candidate_rows"][0]["cells"][0]["value"] == "82"
