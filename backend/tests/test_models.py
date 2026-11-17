@@ -36,5 +36,7 @@ def test_student_identity_unique(app):
 
 def test_read_only_endpoints(app):
     client = app.test_client()
+    with client.session_transaction() as sess:
+        sess["role"] = "admin"
     assert client.get("/api/academic/departments").json == []
     assert client.post("/api/academic/students", json={}).status_code == 405
