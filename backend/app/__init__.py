@@ -6,6 +6,7 @@ from flask_migrate import Migrate
 from .excel_engine.reader import inspect_workbook, WorkbookReadError
 from .excel_engine.templates import enrich_preview
 from .excel_engine.extractor import extract_candidates
+from .excel_engine.annual_register import parse_annual_register
 from .models import db
 from .admin import admin_bp, require_auth
 from .api_academic import academic_bp
@@ -65,6 +66,18 @@ def create_app(test_config=None):
                 sheet_name=request.form.get("sheet_name") or None,
                 name_column=name_column, start_row=start_row,
             )
+        except WorkbookReadError as exc:
+            return jsonify(error=str(exc)), 422
+        return jsonify(result)
+
+    @app.post("/api/excel/annual-register")
+    @require_auth
+    def annual_register_preview():
+        uploaded = request.files.get("file")
+        if uploaded is None or not uploaded.filename:
+            return jsonify(error="A file is required"), 400
+        try:
+            result = parse_annual_register(uploaded.stream, uploaded.filename)
         except WorkbookReadError as exc:
             return jsonify(error=str(exc)), 422
         return jsonify(result)
