@@ -61,21 +61,26 @@ def parse_annual_register(stream, filename, sheet_name=None, max_students=MAX_PR
                     break
                 name = _text(row[2]) if len(row) > 2 else ""
                 attempt = _text(row[3]) if len(row) > 3 else ""
-                # Formula references and repeated table headings are never student identities.
-                # Preserve an explicit issue rather than silently accepting them.
-                invalid_name = bool(name) and (
-                    name.startswith("=")
-                    or name.replace(" ", "").replace("ـ", "") in
+                # A real candidate starts on the first-attempt row and has
+                # a numeric serial in column B. Repeated headers, copied
+                # formulas and preformatted blank rows are not students.
+                serial = row[1] if len(row) > 1 else None
+                valid_serial = (
+                    isinstance(serial, int) and not isinstance(serial, bool) and serial > 0
+                ) or (
+                    isinstance(serial, str) and serial.strip().isdigit()
+                    and int(serial.strip()) > 0
+                )
+                valid_name = (
+                    bool(name) and not name.startswith("=")
+                    and len(name.split()) >= 2
+                    and name.replace(" ", "").replace("ـ", "") not in
                     {"الاسم", "اسمالطالب", "اسمالطالبة", "اسماءالطلبة", "اسماءالطلاب"}
                 )
-                if invalid_name:
+                starts_student = valid_name and valid_serial and attempt == ATTEMPTS[0]
+                if name and not starts_student:
                     issues.append({"row": row_number, "code": "non_student_name_cell"})
-                    if pending is not None:
-                        issues.append({"row": pending["excel_row"], "code": "incomplete_attempt_group"})
-                        students.append(pending)
-                        pending = None
-                    continue
-                if name:
+                if starts_student:
                     if pending is not None:
                         issues.append({"row": pending["excel_row"], "code": "incomplete_attempt_group"})
                         students.append(pending)
@@ -83,6 +88,13 @@ def parse_annual_register(stream, filename, sheet_name=None, max_students=MAX_PR
                             break
                     pending = {"excel_row": row_number, "name_candidate": name,
                                "attempts": {}, "review_required": True}
+                elif name:
+                    # A heading or formula interrupts the current table.
+                    if pending is not None:
+                        issues.append({"row": pending["excel_row"], "code": "incomplete_attempt_group"})
+                        students.append(pending)
+                        pending = None
+                    continue
                 if pending is None:
                     continue
                 if attempt not in ATTEMPTS:
