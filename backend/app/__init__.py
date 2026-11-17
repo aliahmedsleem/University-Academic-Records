@@ -55,7 +55,16 @@ def create_app(test_config=None):
         if uploaded is None or not uploaded.filename:
             return jsonify(error="A file is required"), 400
         try:
-            result = extract_candidates(uploaded.stream, uploaded.filename)
+            try:
+                name_column = int(request.form.get("name_column", "3"))
+                start_row = int(request.form.get("start_row", "10"))
+            except (TypeError, ValueError):
+                return jsonify(error="Column and row must be integers"), 400
+            result = extract_candidates(
+                uploaded.stream, uploaded.filename,
+                sheet_name=request.form.get("sheet_name") or None,
+                name_column=name_column, start_row=start_row,
+            )
         except WorkbookReadError as exc:
             return jsonify(error=str(exc)), 422
         return jsonify(result)
