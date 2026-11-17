@@ -61,6 +61,20 @@ def parse_annual_register(stream, filename, sheet_name=None, max_students=MAX_PR
                     break
                 name = _text(row[2]) if len(row) > 2 else ""
                 attempt = _text(row[3]) if len(row) > 3 else ""
+                # Formula references and repeated table headings are never student identities.
+                # Preserve an explicit issue rather than silently accepting them.
+                invalid_name = bool(name) and (
+                    name.startswith("=")
+                    or name.replace(" ", "").replace("ـ", "") in
+                    {"الاسم", "اسمالطالب", "اسمالطالبة", "اسماءالطلبة", "اسماءالطلاب"}
+                )
+                if invalid_name:
+                    issues.append({"row": row_number, "code": "non_student_name_cell"})
+                    if pending is not None:
+                        issues.append({"row": pending["excel_row"], "code": "incomplete_attempt_group"})
+                        students.append(pending)
+                        pending = None
+                    continue
                 if name:
                     if pending is not None:
                         issues.append({"row": pending["excel_row"], "code": "incomplete_attempt_group"})
