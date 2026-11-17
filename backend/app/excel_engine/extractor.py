@@ -40,7 +40,9 @@ def _scan(get_value, max_row, max_col, sheet_name, name_column=3, start_row=10):
             continue
         cells = []
         for col in range(1, min(max_col, 28) + 1):
-            if col == name_column:\n                continue\n            value = get_value(row, col)
+            if col == name_column:
+                continue
+            value = get_value(row, col)
             if value is not None and _clean(value):
                 cells.append({"column": col, "value": _clean(value)[:120], "formula": False})
         candidates.append({"excel_row": row, "name_candidate": name, "cells": cells})
