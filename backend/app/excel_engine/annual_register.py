@@ -32,6 +32,7 @@ def parse_annual_register(stream, filename, sheet_name=None, max_students=MAX_PR
             if len(infos) > 20000 or sum(x.file_size for x in infos) > 250 * 1024 * 1024:
                 raise WorkbookReadError("Workbook exceeds safe decompressed size")
         wb = openpyxl.load_workbook(BytesIO(raw), read_only=True, data_only=False, keep_links=False)
+        cached_wb = openpyxl.load_workbook(BytesIO(raw), read_only=True, data_only=True, keep_links=False)
         try:
             if len(wb.worksheets) > MAX_SHEETS:
                 raise WorkbookReadError("Workbook has too many sheets")
@@ -43,6 +44,7 @@ def parse_annual_register(stream, filename, sheet_name=None, max_students=MAX_PR
                 if sheet_name is None:
                     raise WorkbookReadError("Annual grade sheet not identified. Select one of: " + ", ".join(wb.sheetnames[:10]))
             ws = wb[sheet_name]
+            cached_ws = cached_wb[sheet_name]
             if ws.max_row > MAX_ROWS or ws.max_column > MAX_COLUMNS:
                 raise WorkbookReadError("Worksheet exceeds safe dimensions")
             groups = []
@@ -51,12 +53,14 @@ def parse_annual_register(stream, filename, sheet_name=None, max_students=MAX_PR
                     "group": len(groups) + 1,
                     "columns": {"annual": start, "final_exam": start + 1, "total": start + 2},
                     "credit_hours_raw": ws.cell(5, start).value,
+                    "course_name_raw": _text(ws.cell(6, start).value),
                     "course_id": None,
                     "requires_course_mapping": True,
                 })
             students, issues = [], []
             pending = None
             for row_number, row in enumerate(ws.iter_rows(min_row=8, max_col=47, values_only=True), 8):
+                cached_row = next(cached_ws.iter_rows(min_row=row_number, max_row=row_number, max_col=47, values_only=True))
                 if len(students) >= max_students:
                     break
                 name = _text(row[2]) if len(row) > 2 else ""
@@ -104,7 +108,15 @@ def parse_annual_register(stream, filename, sheet_name=None, max_students=MAX_PR
                     cells = {}
                     for field, col in group["columns"].items():
                         v = row[col - 1] if len(row) >= col else None
-                        cells[field] = {"raw": _text(v)[:120], "formula": isinstance(v, str) and v.startswith("=")}
+                        is_formula = isinstance(v, str) and v.startswith("=")
+                        cached = cached_row[col - 1] if len(cached_row) >= col else None
+                        cached_number = isinstance(cached, (int, float)) and not isinstance(cached, bool)
+                        cells[field] = {
+                            "raw": _text(v)[:120],
+                            "formula": is_formula,
+                            "cached_value": cached if is_formula and cached_number else None,
+                            "value_status": ("formula_cached_unverified" if cached_number else "formula_without_cached_value") if is_formula else "literal",
+                        }
                     values.append({"group": group["group"], "cells": cells})
                 pending["attempts"][attempt] = {
                     "excel_row": row_number, "courses": values,
@@ -138,6 +150,7 @@ def parse_annual_register(stream, filename, sheet_name=None, max_students=MAX_PR
             }
         finally:
             wb.close()
+            cached_wb.close()
     except WorkbookReadError:
         raise
     except (BadZipFile, OSError, ValueError, TypeError, KeyError) as exc:
