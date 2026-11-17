@@ -52,7 +52,7 @@ def create_batch():
     if uploaded is None or not uploaded.filename:
         return jsonify(error="A file is required"), 400
     try:
-        preview = parse_annual_register(uploaded.stream, uploaded.filename)
+        preview = parse_annual_register(uploaded.stream, uploaded.filename, sheet_name=request.form.get('sheet_name') or None)
     except WorkbookReadError as exc:
         return jsonify(error=str(exc)), 422
     if not preview["candidate_students"]:
