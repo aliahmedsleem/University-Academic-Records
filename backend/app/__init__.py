@@ -7,6 +7,7 @@ from .excel_engine.reader import inspect_workbook, WorkbookReadError
 from .excel_engine.templates import enrich_preview
 from .excel_engine.extractor import extract_candidates
 from .excel_engine.annual_register import parse_annual_register
+from .excel_engine.validation import validate_annual_review
 from .models import db
 from .admin import admin_bp, require_auth
 from .api_academic import academic_bp
@@ -79,6 +80,21 @@ def create_app(test_config=None):
         try:
             result = parse_annual_register(uploaded.stream, uploaded.filename)
         except WorkbookReadError as exc:
+            return jsonify(error=str(exc)), 422
+        return jsonify(result)
+
+    @app.post("/api/excel/annual-register/validate")
+    @require_auth
+    def annual_register_validate():
+        uploaded = request.files.get("file")
+        if uploaded is None or not uploaded.filename:
+            return jsonify(error="A file is required"), 400
+        import json
+        try:
+            mapping = json.loads(request.form.get("course_mapping", "{}"))
+            review = parse_annual_register(uploaded.stream, uploaded.filename)
+            result = validate_annual_review(review, mapping)
+        except (ValueError, TypeError, WorkbookReadError) as exc:
             return jsonify(error=str(exc)), 422
         return jsonify(result)
 
