@@ -63,3 +63,18 @@ def test_formula_is_flagged_in_candidates():
     assert cell["column"] == 5
     assert cell["formula"] is True
     assert result["saved_to_database"] is False
+
+def test_manual_sheet_and_name_column_mapping():
+    from app.excel_engine.extractor import extract_candidates
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "كشف تجريبي"
+    ws["B5"] = "سارة احمد محمد علي"
+    ws["D5"] = 91
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    result = extract_candidates(output, "sample.xlsx", sheet_name="كشف تجريبي", name_column=2, start_row=5)
+    assert result["sheets"][0]["candidate_rows"][0]["name_candidate"] == "سارة احمد محمد علي"
+    assert result["sheets"][0]["candidate_rows"][0]["cells"][0]["column"] == 4
+    assert result["saved_to_database"] is False
