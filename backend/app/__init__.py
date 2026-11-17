@@ -85,7 +85,7 @@ def create_app(test_config=None):
         if uploaded is None or not uploaded.filename:
             return jsonify(error="A file is required"), 400
         try:
-            result = parse_annual_register(uploaded.stream, uploaded.filename)
+            result = parse_annual_register(uploaded.stream, uploaded.filename, sheet_name=request.form.get('sheet_name') or None)
         except WorkbookReadError as exc:
             return jsonify(error=str(exc)), 422
         return jsonify(result)
@@ -99,7 +99,7 @@ def create_app(test_config=None):
         import json
         try:
             mapping = json.loads(request.form.get("course_mapping", "{}"))
-            review = parse_annual_register(uploaded.stream, uploaded.filename)
+            review = parse_annual_register(uploaded.stream, uploaded.filename, sheet_name=request.form.get('sheet_name') or None)
             result = validate_annual_review(review, mapping)
         except (ValueError, TypeError, WorkbookReadError) as exc:
             return jsonify(error=str(exc)), 422
@@ -114,7 +114,7 @@ def create_app(test_config=None):
         try:
             department_raw = request.form.get("department_id", "").strip()
             department_id = int(department_raw) if department_raw else None
-            review = parse_annual_register(uploaded.stream, uploaded.filename)
+            review = parse_annual_register(uploaded.stream, uploaded.filename, sheet_name=request.form.get('sheet_name') or None)
             result = match_candidates(review, department_id)
         except (ValueError, TypeError, WorkbookReadError) as exc:
             return jsonify(error=str(exc)), 422
@@ -134,7 +134,7 @@ def create_app(test_config=None):
             department_id = int(request.form["department_id"])
             academic_year_id = int(request.form["academic_year_id"])
             course_mapping = json.loads(request.form.get("course_mapping", "{}"))
-            review = parse_annual_register(uploaded.stream, uploaded.filename)
+            review = parse_annual_register(uploaded.stream, uploaded.filename, sheet_name=request.form.get('sheet_name') or None)
             result = reconcile_register(review, department_id, academic_year_id, course_mapping)
         except (KeyError, ValueError, TypeError, WorkbookReadError) as exc:
             return jsonify(error=str(exc)), 422
@@ -153,7 +153,7 @@ def create_app(test_config=None):
         try:
             department_id = int(request.form["department_id"])
             decisions = json.loads(request.form.get("decisions", "{}"))
-            review = parse_annual_register(uploaded.stream, uploaded.filename)
+            review = parse_annual_register(uploaded.stream, uploaded.filename, sheet_name=request.form.get('sheet_name') or None)
             result = review_identity_decisions(review, department_id, decisions)
         except (KeyError, ValueError, TypeError, WorkbookReadError) as exc:
             return jsonify(error=str(exc)), 422
@@ -171,7 +171,7 @@ def create_app(test_config=None):
             return jsonify(error="A file is required"), 400
         try:
             policy = json.loads(request.form["policy"])
-            review = parse_annual_register(uploaded.stream, uploaded.filename)
+            review = parse_annual_register(uploaded.stream, uploaded.filename, sheet_name=request.form.get('sheet_name') or None)
             result = inspect_grade_rules(review, policy)
         except (KeyError, ValueError, TypeError, WorkbookReadError) as exc:
             return jsonify(error=str(exc)), 422
@@ -193,7 +193,7 @@ def create_app(test_config=None):
             course_mapping = json.loads(request.form.get("course_mapping", "{}"))
             policy = json.loads(request.form["policy"])
             decisions = json.loads(request.form.get("decisions", "{}"))
-            review = parse_annual_register(uploaded.stream, uploaded.filename)
+            review = parse_annual_register(uploaded.stream, uploaded.filename, sheet_name=request.form.get('sheet_name') or None)
             result = build_readiness_report(
                 review, department_id, academic_year_id,
                 course_mapping, policy, decisions,
