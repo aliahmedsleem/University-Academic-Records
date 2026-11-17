@@ -12,6 +12,7 @@ from .student_matching import match_candidates
 from .models import db
 from .admin import admin_bp, require_auth
 from .api_academic import academic_bp
+from .grade_batches import batch_bp
 
 migrate = Migrate()
 
@@ -34,6 +35,7 @@ def create_app(test_config=None):
     migrate.init_app(app, db)
     app.register_blueprint(admin_bp)
     app.register_blueprint(academic_bp)
+    app.register_blueprint(batch_bp)
 
     @app.get("/api/health")
     def health():
