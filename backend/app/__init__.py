@@ -14,6 +14,7 @@ from .admin import admin_bp, require_auth
 from .api_academic import academic_bp
 from .grade_batches import batch_bp
 from .grade_reconciliation import reconcile_register
+from .identity_review import review_identity_decisions
 
 migrate = Migrate()
 
@@ -133,6 +134,25 @@ def create_app(test_config=None):
             course_mapping = json.loads(request.form.get("course_mapping", "{}"))
             review = parse_annual_register(uploaded.stream, uploaded.filename)
             result = reconcile_register(review, department_id, academic_year_id, course_mapping)
+        except (KeyError, ValueError, TypeError, WorkbookReadError) as exc:
+            return jsonify(error=str(exc)), 422
+        return jsonify(result)
+
+    @app.post("/api/excel/annual-register/review-identities")
+    @require_auth
+    def annual_register_review_identities():
+        import json
+        from flask import session
+        if session.get("role") != "admin":
+            return jsonify(error="Forbidden"), 403
+        uploaded = request.files.get("file")
+        if uploaded is None or not uploaded.filename:
+            return jsonify(error="A file is required"), 400
+        try:
+            department_id = int(request.form["department_id"])
+            decisions = json.loads(request.form.get("decisions", "{}"))
+            review = parse_annual_register(uploaded.stream, uploaded.filename)
+            result = review_identity_decisions(review, department_id, decisions)
         except (KeyError, ValueError, TypeError, WorkbookReadError) as exc:
             return jsonify(error=str(exc)), 422
         return jsonify(result)
