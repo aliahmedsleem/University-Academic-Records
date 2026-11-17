@@ -4,6 +4,7 @@ from werkzeug.exceptions import RequestEntityTooLarge
 from flask_migrate import Migrate
 
 from .excel_engine.reader import inspect_workbook, WorkbookReadError
+from .excel_engine.templates import enrich_preview
 from .models import db
 from .admin import admin_bp, require_auth
 from .api_academic import academic_bp
@@ -41,7 +42,7 @@ def create_app(test_config=None):
         if uploaded is None or not uploaded.filename:
             return jsonify(error="A file is required"), 400
         try:
-            preview = inspect_workbook(uploaded.stream, uploaded.filename)
+            preview = enrich_preview(inspect_workbook(uploaded.stream, uploaded.filename))
         except WorkbookReadError as exc:
             return jsonify(error=str(exc)), 422
         return jsonify(preview)
