@@ -12,6 +12,7 @@ def test_formula_and_heading_are_not_student_candidates():
     sheet["D8"] = "د1"
     sheet["C11"] = "الاسم"
     sheet["D11"] = "د1"
+    sheet["B14"] = 1
     sheet["C14"] = "طالب تجريبي"
     for row, attempt in [(14, "د1"), (15, "د2"), (16, "ق")]:
         sheet.cell(row, 4, attempt)
