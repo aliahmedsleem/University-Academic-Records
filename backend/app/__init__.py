@@ -8,6 +8,7 @@ from .excel_engine.templates import enrich_preview
 from .excel_engine.extractor import extract_candidates
 from .excel_engine.annual_register import parse_annual_register
 from .excel_engine.validation import validate_annual_review
+from .student_matching import match_candidates
 from .models import db
 from .admin import admin_bp, require_auth
 from .api_academic import academic_bp
@@ -94,6 +95,21 @@ def create_app(test_config=None):
             mapping = json.loads(request.form.get("course_mapping", "{}"))
             review = parse_annual_register(uploaded.stream, uploaded.filename)
             result = validate_annual_review(review, mapping)
+        except (ValueError, TypeError, WorkbookReadError) as exc:
+            return jsonify(error=str(exc)), 422
+        return jsonify(result)
+
+    @app.post("/api/excel/annual-register/match-students")
+    @require_auth
+    def annual_register_match_students():
+        uploaded = request.files.get("file")
+        if uploaded is None or not uploaded.filename:
+            return jsonify(error="A file is required"), 400
+        try:
+            department_raw = request.form.get("department_id", "").strip()
+            department_id = int(department_raw) if department_raw else None
+            review = parse_annual_register(uploaded.stream, uploaded.filename)
+            result = match_candidates(review, department_id)
         except (ValueError, TypeError, WorkbookReadError) as exc:
             return jsonify(error=str(exc)), 422
         return jsonify(result)
