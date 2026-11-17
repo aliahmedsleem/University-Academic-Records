@@ -77,3 +77,16 @@ class Grade(db.Model):
         CheckConstraint("score >= 0"),
         CheckConstraint("attempt >= 1"),
     )
+
+class GradeBatchAuditEvent(db.Model):
+    """Append-only application audit record for review-batch decisions."""
+    __tablename__ = "grade_batch_audit_events"
+    id = db.Column(db.Integer, primary_key=True)
+    batch_id = db.Column(db.Integer, db.ForeignKey("grade_import_batches.id"), nullable=False, index=True)
+    action = db.Column(db.String(40), nullable=False)
+    actor_username = db.Column(db.String(150), nullable=False)
+    actor_role = db.Column(db.String(30), nullable=False)
+    previous_status = db.Column(db.String(30))
+    new_status = db.Column(db.String(30), nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, server_default=db.func.now())
+    __table_args__ = (CheckConstraint("action IN ('created','rejected')"),)
