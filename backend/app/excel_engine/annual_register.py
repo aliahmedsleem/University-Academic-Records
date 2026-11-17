@@ -59,8 +59,11 @@ def parse_annual_register(stream, filename, sheet_name=None, max_students=MAX_PR
                 })
             students, issues = [], []
             pending = None
-            for row_number, row in enumerate(ws.iter_rows(min_row=8, max_col=47, values_only=True), 8):
-                cached_row = next(cached_ws.iter_rows(min_row=row_number, max_row=row_number, max_col=47, values_only=True))
+            # Stream both worksheets once. Reopening iter_rows for every row
+            # rescans the XLSX XML from the beginning (quadratic slowdown).
+            original_rows = ws.iter_rows(min_row=8, max_col=47, values_only=True)
+            cached_rows = cached_ws.iter_rows(min_row=8, max_col=47, values_only=True)
+            for row_number, (row, cached_row) in enumerate(zip(original_rows, cached_rows), 8):
                 if len(students) >= max_students:
                     break
                 name = _text(row[2]) if len(row) > 2 else ""
