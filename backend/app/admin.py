@@ -4,7 +4,7 @@ from functools import wraps
 from flask import Blueprint, request, jsonify, session
 from sqlalchemy.exc import IntegrityError
 from werkzeug.security import check_password_hash
-from .models import db, Department, Stage, Course
+from .models import db, Department, Stage, Course, Student, CourseOffering, Grade
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/api/admin")
 CONFIG = {
@@ -64,6 +64,25 @@ def records(resource, record_id=None):
     if record_id is not None and obj is None:
         return jsonify(error="Not found"), 404
     if request.method == "DELETE":
+        # Check dependencies explicitly: SQLite may not enforce foreign keys
+        # in every environment, and academic records must never be orphaned.
+        dependencies = {
+            "departments": (
+                (Stage, "department_id"),
+                (Course, "department_id"),
+                (Student, "department_id"),
+            ),
+            "stages": ((Course, "stage_id"),),
+            "courses": ((CourseOffering, "course_id"),),
+        }
+        for related_model, foreign_key in dependencies[resource]:
+            exists = db.session.execute(
+                db.select(related_model.id)
+                .where(getattr(related_model, foreign_key) == record_id)
+                .limit(1)
+            ).first()
+            if exists:
+                return jsonify(error="Record is referenced by other academic records"), 409
         try:
             db.session.delete(obj)
             db.session.commit()
