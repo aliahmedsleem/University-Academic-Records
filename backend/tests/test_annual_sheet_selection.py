@@ -7,6 +7,7 @@ def make_book():
     book = openpyxl.Workbook()
     sheet = book.active
     sheet.title = "الدرجات السنوية"
+    sheet["B8"] = 1
     sheet["C8"] = "طالب تجريبي"
     for row, label in [(8, "د1"), (9, "د2"), (10, "ق")]:
         sheet.cell(row, 4, label)
