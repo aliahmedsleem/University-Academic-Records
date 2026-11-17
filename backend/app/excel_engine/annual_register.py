@@ -61,16 +61,8 @@ def parse_annual_register(stream, filename, sheet_name=None, max_students=MAX_PR
                     break
                 name = _text(row[2]) if len(row) > 2 else ""
                 attempt = _text(row[3]) if len(row) > 3 else ""
-                # A real candidate starts on the first-attempt row and has
-                # a numeric serial in column B. Repeated headers, copied
-                # formulas and preformatted blank rows are not students.
-                serial = row[1] if len(row) > 1 else None
-                valid_serial = (
-                    isinstance(serial, int) and not isinstance(serial, bool) and serial > 0
-                ) or (
-                    isinstance(serial, str) and serial.strip().isdigit()
-                    and int(serial.strip()) > 0
-                )
+                # Student identity remains a candidate until manually reviewed.
+                # No mandatory serial number: some legitimate registers omit it.
                 valid_name = (
                     bool(name) and not name.startswith("=")
                     and len(name.split()) >= 2
