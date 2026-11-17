@@ -6,7 +6,8 @@ from io import BytesIO
 from pathlib import Path
 import openpyxl
 import xlrd
-from .reader import WorkbookReadError, OLE_SIGNATURE, MAX_ROWS, MAX_COLUMNS, MAX_SHEETS, MAX_SHEETS, MAX_COLUMNS
+import hashlib
+from .reader import WorkbookReadError, OLE_SIGNATURE, MAX_ROWS, MAX_COLUMNS, MAX_SHEETS
 from .templates import classify_sheet, classify_workbook
 
 MAX_CANDIDATES = 300
@@ -23,7 +24,7 @@ def _candidate_name(value):
     s = _clean(value)
     if not (7 <= len(s) <= 150) or not any("\u0621" <= c <= "\u064a" for c in s):
         return False
-    return 2 <= len(s.split()) <= 7 and not any(ch.isdigit() for ch in s)
+    return 3 <= len(s.split()) <= 7 and not any(ch.isdigit() for ch in s) and not s.startswith("=")
 
 def _scan(get_value, max_row, max_col, sheet_name):
     # These register families place student names in column C and course
@@ -42,7 +43,7 @@ def _scan(get_value, max_row, max_col, sheet_name):
         for col in range(4, min(max_col, 28) + 1):
             value = get_value(row, col)
             if value is not None and _clean(value):
-                cells.append({"column": col, "value": _clean(value)[:120]})
+                cells.append({"column": col, "value": _clean(value)[:120], "formula": False})
         candidates.append({"excel_row": row, "name_candidate": name, "cells": cells})
         if len(candidates) >= MAX_CANDIDATES:
             break
@@ -58,6 +59,7 @@ def extract_candidates(stream, filename):
     raw = stream.read(MAX_UPLOAD + 1)
     if not raw or len(raw) > MAX_UPLOAD:
         raise WorkbookReadError("Empty or oversized file")
+    digest = hashlib.sha256(raw).hexdigest()
     if suffix == ".xls":
         if not raw.startswith(OLE_SIGNATURE):
             raise WorkbookReadError("Invalid XLS signature")
@@ -111,7 +113,7 @@ def extract_candidates(stream, filename):
                         name = _clean(values[2] if len(values) > 2 else None)
                         if not _candidate_name(name):
                             continue
-                        cells = [{"column": j+1, "value": _clean(v)[:120]}
+                        cells = [{"column": j+1, "value": _clean(v)[:120], "formula": isinstance(v,str) and v.startswith("=")}
                                  for j,v in enumerate(values[3:28],3) if v is not None and _clean(v)]
                         candidates.append({"excel_row": row_num, "name_candidate": name, "cells": cells})
                         if len(candidates) >= MAX_CANDIDATES:
@@ -130,8 +132,9 @@ def extract_candidates(stream, filename):
             if isinstance(exc, WorkbookReadError):
                 raise
             raise WorkbookReadError("Could not read OOXML workbook") from exc
-    return {"filename":Path(filename).name,"template_family":classify_workbook(names),
+    return {"filename":Path(filename).name,"sha256":digest,"template_family":classify_workbook(names),
             "sheets":sheets,"review_required":True,"saved_to_database":False,
             "warnings":["Student names are candidates, not verified identities.",
                         "Assessment columns are raw values, not interpreted grades.",
+                        "Cells marked formula=true must not be treated as verified scores.",
                         "No student records or grades have been saved."]}
