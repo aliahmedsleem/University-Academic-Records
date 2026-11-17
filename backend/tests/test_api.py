@@ -6,7 +6,11 @@ from app import create_app
 
 @pytest.fixture
 def client():
-    app = create_app({"TESTING": True, "SECRET_KEY": "test-only"})\n    client = app.test_client()\n    with client.session_transaction() as sess:\n        sess["role"] = "admin"\n    return client
+    app = create_app({"TESTING": True, "SECRET_KEY": "test-only"})
+    client = app.test_client()
+    with client.session_transaction() as sess:
+        sess["role"] = "admin"
+    return client
 
 
 def test_health(client):
