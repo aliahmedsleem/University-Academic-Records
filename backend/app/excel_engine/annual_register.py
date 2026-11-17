@@ -6,6 +6,7 @@ Course identities are deliberately not inferred from column positions.
 from io import BytesIO
 from pathlib import Path
 import hashlib
+import re
 import openpyxl
 from .reader import WorkbookReadError, MAX_ROWS, MAX_COLUMNS, MAX_SHEETS
 
@@ -47,6 +48,20 @@ def parse_annual_register(stream, filename, sheet_name=None, max_students=MAX_PR
             cached_ws = cached_wb[sheet_name]
             if ws.max_row > MAX_ROWS or ws.max_column > MAX_COLUMNS:
                 raise WorkbookReadError("Worksheet exceeds safe dimensions")
+            # Extract only metadata explicitly written in the workbook.
+            header_cells = [_text(ws.cell(r, col).value) for r in range(1, 5) for col in range(1, min(ws.max_column, 62) + 1)]
+            header_text = " | ".join(v for v in header_cells if v and not v.startswith("="))
+            year_match = re.search(r"(?:العام\\s*الدراسي|السنة\\s*الدراسية)\\s*[:：]?\\s*(\\d{4}\\s*[-–/]\\s*\\d{4})", header_text)
+            def labeled_value(label):
+                match = re.search(label + r"\\s*[:：]\\s*([^|]+)", header_text)
+                return match.group(1).strip() if match and match.group(1).strip() else None
+            academic_metadata = {
+                "academic_year": re.sub(r"\\s+", "", year_match.group(1)) if year_match else None,
+                "department": labeled_value("القسم"),
+                "stage": labeled_value("المرحلة"),
+                "study": labeled_value("الدراسة"),
+                "cohort": labeled_value("الدفعة"),
+            }
             groups = []
             for start in range(5, 41, 3):
                 groups.append({
@@ -142,6 +157,7 @@ def parse_annual_register(stream, filename, sheet_name=None, max_students=MAX_PR
             return {
                 "filename": Path(filename).name, "sha256": hashlib.sha256(raw).hexdigest(),
                 "sheet": sheet_name, "layout": "annual_three_attempts",
+                "academic_metadata": academic_metadata,
                 "attempt_labels": list(ATTEMPTS), "course_groups": groups,
                 "candidate_students": students, "candidate_count_preview": len(students),
                 "preview_limit": max_students, "issues": issues,
