@@ -46,3 +46,20 @@ def test_candidate_extraction_never_saves():
     assert result["review_required"] is True
     assert result["sheets"][0]["candidate_rows"][0]["excel_row"] == 10
     assert result["sheets"][0]["candidate_rows"][0]["cells"][0]["value"] == "82"
+
+def test_formula_is_flagged_in_candidates():
+    from app.excel_engine.extractor import extract_candidates
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "سجل الدرجات"
+    ws["C10"] = "احمد محمد علي حسين"
+    ws["E10"] = "=SUM(F10:G10)"
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    result = extract_candidates(output, "grades.xlsx")
+    assert len(result["sha256"]) == 64
+    cell = result["sheets"][0]["candidate_rows"][0]["cells"][0]
+    assert cell["column"] == 5
+    assert cell["formula"] is True
+    assert result["saved_to_database"] is False
