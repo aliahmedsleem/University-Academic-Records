@@ -16,6 +16,7 @@ from .grade_batches import batch_bp
 from .grade_reconciliation import reconcile_register
 from .identity_review import review_identity_decisions
 from .grade_rules import inspect_grade_rules
+from .import_readiness import build_readiness_report
 
 migrate = Migrate()
 
@@ -172,6 +173,31 @@ def create_app(test_config=None):
             policy = json.loads(request.form["policy"])
             review = parse_annual_register(uploaded.stream, uploaded.filename)
             result = inspect_grade_rules(review, policy)
+        except (KeyError, ValueError, TypeError, WorkbookReadError) as exc:
+            return jsonify(error=str(exc)), 422
+        return jsonify(result)
+
+    @app.post("/api/excel/annual-register/readiness")
+    @require_auth
+    def annual_register_readiness():
+        import json
+        from flask import session
+        if session.get("role") != "admin":
+            return jsonify(error="Forbidden"), 403
+        uploaded = request.files.get("file")
+        if uploaded is None or not uploaded.filename:
+            return jsonify(error="A file is required"), 400
+        try:
+            department_id = int(request.form["department_id"])
+            academic_year_id = int(request.form["academic_year_id"])
+            course_mapping = json.loads(request.form.get("course_mapping", "{}"))
+            policy = json.loads(request.form["policy"])
+            decisions = json.loads(request.form.get("decisions", "{}"))
+            review = parse_annual_register(uploaded.stream, uploaded.filename)
+            result = build_readiness_report(
+                review, department_id, academic_year_id,
+                course_mapping, policy, decisions,
+            )
         except (KeyError, ValueError, TypeError, WorkbookReadError) as exc:
             return jsonify(error=str(exc)), 422
         return jsonify(result)
